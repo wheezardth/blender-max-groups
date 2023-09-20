@@ -1,7 +1,14 @@
 bl_info = {
-    "name": "3ds Max-like Grouping",
+    "name": "Max Group",
+    "author": "Stefan Kachaunov",
+    "version": (1, 0, 0),
     "blender": (3, 6, 0),
     "category": "Object",
+    "location": "3D View > Tools Panel",
+    "description": "Group objects with a bounding cube, mimicking 3ds Max grouping.",
+    "warning": "Overrides Ctrl+Alt+G keymap.",
+    "doc_url": "https://github.com/wheezardth/blender-max-groups/blob/main/README.md",
+    "tracker_url": "https://github.com/wheezardth/blender-max-groups/issues",
 }
 
 import bpy
