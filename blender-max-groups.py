@@ -1,24 +1,11 @@
 bl_info = {
     "name": "3ds Max-like Grouping",
-    "blender": (2, 80, 0),
+    "blender": (3, 6, 0),
     "category": "Object",
 }
 
 import bpy
-import bmesh
 from mathutils import Vector
-
-def center_of_mass(objects):
-    total_mass = 0.0
-    total_center = Vector((0.0, 0.0, 0.0))
-
-    for obj in objects:
-        volume = obj.dimensions.x * obj.dimensions.y * obj.dimensions.z
-        center = obj.location
-        total_mass += volume
-        total_center += volume * center
-
-    return total_center / total_mass if total_mass != 0 else Vector((0, 0, 0))
 
 def bounding_box(objects):
     if not objects:
@@ -28,17 +15,14 @@ def bounding_box(objects):
     max_corner = Vector((float('-inf'), float('-inf'), float('-inf')))
 
     for obj in objects:
-        mesh = obj.data
-        mat_world = obj.matrix_world
-
-        for vert in mesh.vertices:
-            world_coord = mat_world @ vert.co
-            min_corner.x = min(min_corner.x, world_coord.x)
-            min_corner.y = min(min_corner.y, world_coord.y)
-            min_corner.z = min(min_corner.z, world_coord.z)
-            max_corner.x = max(max_corner.x, world_coord.x)
-            max_corner.y = max(max_corner.y, world_coord.y)
-            max_corner.z = max(max_corner.z, world_coord.z)
+        bb_world = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
+        for coord in bb_world:
+            min_corner.x = min(min_corner.x, coord.x)
+            min_corner.y = min(min_corner.y, coord.y)
+            min_corner.z = min(min_corner.z, coord.z)
+            max_corner.x = max(max_corner.x, coord.x)
+            max_corner.y = max(max_corner.y, coord.y)
+            max_corner.z = max(max_corner.z, coord.z)
 
     return min_corner, max_corner
 
@@ -49,35 +33,40 @@ class OBJECT_OT_max_group(bpy.types.Operator):
     def execute(self, context):
         selected_objects = context.selected_objects
 
-        # 1. Create Empty
-        bpy.ops.object.empty_add(type='CUBE')
-        empty = context.active_object
-
-        # 2. Calculate center of mass
-        com = center_of_mass(selected_objects)
-        empty.location = com
-
-        # 3. Calculate bounding box dimensions
+        # Calculate bounding box dimensions
         min_corner, max_corner = bounding_box(selected_objects)
-        if min_corner and max_corner:
-            empty.dimensions = max_corner - min_corner
+        if not min_corner or not max_corner:
+            return {'CANCELLED'}
 
-        # 4. Parent all objects to the empty
-        for obj in selected_objects:
-            obj.parent = empty
+        # Enlarge the bounding box dimensions by 2%
+        scale_factor = 1.02
+        size_adjust = (max_corner - min_corner) * (scale_factor - 1) / 2
+        min_corner -= size_adjust
+        max_corner += size_adjust
 
-        # 5. Create new collection
-        new_collection = bpy.data.collections.new("MaxGrouped")
-        context.scene.collection.children.link(new_collection)
+        # Calculate the center for the cube
+        cube_center = (min_corner + max_corner) / 2
 
-        # Move the objects and the empty to the new collection
-        for obj in selected_objects:
-            context.collection.objects.unlink(obj)
-            new_collection.objects.link(obj)
+        # Calculate the dimensions for the cube
+        cube_dimensions = max_corner - min_corner
+
+        # Add a cube to act as the "empty"
+        bpy.ops.mesh.primitive_cube_add(size=1, enter_editmode=False, align='WORLD', location=cube_center)
+        cube = context.active_object
+
+        # Set the scale to match the calculated dimensions
+        cube.scale = cube_dimensions  # Cube has a default size of 2 units in all dimensions
+        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
         
-        # Move the empty as well
-        context.collection.objects.unlink(empty)
-        new_collection.objects.link(empty)
+        # Set display mode to WIRE for the bounding box cube
+        cube.display_type = 'WIRE'
+
+        # Parent all objects to the cube
+        for obj in selected_objects:
+            obj.select_set(True)
+            cube.select_set(True)
+            bpy.context.view_layer.objects.active = cube
+            bpy.ops.object.parent_set(type='OBJECT', keep_transform=True)
 
         return {'FINISHED'}
 
