@@ -81,13 +81,28 @@ class OBJECT_PT_max_group_panel(bpy.types.Panel):
         layout = self.layout
         layout.operator("object.max_group")
 
+# This variable will be used to hold our keymap so we can remove it later when needed
+addon_keymaps = []
+
 def register():
     bpy.utils.register_class(OBJECT_OT_max_group)
     bpy.utils.register_class(OBJECT_PT_max_group_panel)
+    
+    # The following block sets up the keyboard shortcut
+    # It tells Blender to bind the Max Group operator to Ctrl + Alt + G in Object Mode
+    wm = bpy.context.window_manager
+    km = wm.keyconfigs.addon.keymaps.new(name='Object Mode', space_type='EMPTY')
+    kmi = km.keymap_items.new(OBJECT_OT_max_group.bl_idname, 'G', 'PRESS', ctrl=True, alt=True)
+    addon_keymaps.append((km, kmi))
 
 def unregister():
     bpy.utils.unregister_class(OBJECT_OT_max_group)
     bpy.utils.unregister_class(OBJECT_PT_max_group_panel)
+    
+    # This block removes the keyboard shortcut when the add-on is deactivated or uninstalled
+    for km, kmi in addon_keymaps:
+        km.keymap_items.remove(kmi)
+    addon_keymaps.clear()
 
 if __name__ == "__main__":
     register()
